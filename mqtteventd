@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+
+use POSIX qw(strftime);
+
+$mqtthost = "localhost";
+$listenfor= "/Chattenweg5/Kueche/#";
+$sensorhost = "esp1";
+
+$lastMotion=0;
+$noMotion = 0;
+$lux = 1;
+open(F,"mosquitto_sub -v -h $mqtthost -t $listenfor |");
+while (<F>) {
+  if ($_ =~ /motion/) {
+    if ($_ =~ /1$/) {
+      $lastMotion = time();
+      $bright = $lux;
+      $bright = 10 if $lux < 10;
+      $bright = 255 if $lux > 255;
+      print `mosquitto_pub -h $mqtthost -t $sensorhost -m "led $bright 0 0"`;
+      $now_string = strftime "%H:%M:%S", localtime;
+      print "$now_string motion: $bright\n";
+      $noMotion=0;
+    } else {
+      print `mosquitto_pub -h $mqtthost -t $sensorhost -m "led 0 0 0"`;
+    }
+  } elsif ($_ =~ /light (\d+)$/) {
+    $lux = $1;
+  } else {
+  }
+  # print $_;
+
+  if (time() - $lastMotion > 60*60 && !$noMotion) {
+    print "no motion for one hour\n";
+    $noMotion++;
+  }
+}
+
